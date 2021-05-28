@@ -547,26 +547,32 @@ Matrix< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> > ::convert( 
         for ( index_type i = 0; i < new_num_rows; i++ )
         {
             new_row_offsets[i] = new_num_nnz;
-            // count non zero column blocks
-            IVector non_zero_blocks( new_num_cols );
+            // count non zero column blocks, fill with zeros
+            IVector non_zero_blocks( new_num_cols, 0 );
 
+            // proces each flattened row (non-blocked row) in output matrix in the current block row
             for ( index_type j = i * block_dimy; j < (i + 1) * block_dimy && j < mat.get_num_rows() * mat.block_dimy; j++ )
             {
-                // input row block / local position
+
+                // input block row / local row (in the block)
                 index_type in_br = j / mat.block_dimy;
                 index_type in_lr = j % mat.block_dimy;
 
-                // loop through block columns
+                // loop through block columns in the input matrix in the respective block row. 
+                // Count separate diagonal as an "extra" element
                 for ( index_type r = mat.row_offsets[in_br]; r < mat.row_offsets[in_br + 1] + ( mat.hasProps(DIAG) ); r++ )
                 {
+                    // if separate diagonal - treat separately - force block column = block row,
+                    // otherwise - read clumn index
                     index_type in_bc = ( r == mat.row_offsets[in_br + 1] ) ? in_br : mat.col_indices[r];
 
-                    // loop through local columns
+                    // loop through input matrix block local columns
                     for ( index_type in_lc = 0; in_lc < mat.block_dimx; in_lc++ )
                     {
+                        // convert to flattened column
                         index_type in_col = in_bc * mat.block_dimx + in_lc;
                         index_type out_bc = in_col / block_dimx;
-                        // fetch input entry value
+                        // fetch input entry value. treat separate diagonal separately
                         value_type val = ( r == mat.row_offsets[in_br + 1] ) ?
                                          mat.values[mat.diag[in_br] * mat.block_size + in_lr * mat.block_dimx + in_lc] :
                                          mat.values[r * mat.block_size + in_lr * mat.block_dimx + in_lc];
@@ -579,7 +585,7 @@ Matrix< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> > ::convert( 
                 }
             }
 
-            // populate non zero column blocks
+            // populate non zero column indices, filling with zeros
             for ( int bc = 0; bc < new_num_cols; bc++ )
                 if ( non_zero_blocks[bc] != 0 )
                 {
@@ -596,6 +602,7 @@ Matrix< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> > ::convert( 
                 }
 
             // fill non zero values
+            // iterate through flattened rows in the row block
             for ( index_type j = i * block_dimy; j < (i + 1) * block_dimy && j < mat.get_num_rows() * mat.block_dimy; j++ )
             {
                 // output row block/local position
@@ -605,12 +612,13 @@ Matrix< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> > ::convert( 
                 index_type in_br = j / mat.block_dimy;
                 index_type in_lr = j % mat.block_dimy;
 
-                // loop through block columns
+                // loop through block columns - add extra entry for separate diagonal
                 for ( index_type r = mat.row_offsets[in_br]; r < mat.row_offsets[in_br + 1] + ( mat.hasProps(DIAG) ); r++ )
                 {
+                    // separate diagonal handling
                     index_type in_bc = ( r == mat.row_offsets[in_br + 1] ) ? in_br : mat.col_indices[r];
 
-                    // loop through local columns
+                    // loop through local columns of input block
                     for ( index_type in_lc = 0; in_lc < mat.block_dimx; in_lc++ )
                     {
                         index_type in_col = in_bc * mat.block_dimx + in_lc;
@@ -623,7 +631,7 @@ Matrix< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> > ::convert( 
 
                         if ( types::util<value_type>::is_zero(val) ) { continue; }  // skip zero entries
 
-                        // write to new matrix
+                        // write to corresponding entry in new matrix block row
                         if ( out_br != out_bc || !this->hasProps(DIAG) )
                         {
                             new_values[ non_zero_blocks[out_bc] * block_size + out_lr * block_dimx + out_lc] = val;
@@ -637,7 +645,7 @@ Matrix< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> > ::convert( 
             }
         } // for( i < new_num_rows )
 
-        // fill extra diagonal for the last block
+        // fill extra diagonal for the last block with identity
         int extra_start = ( mat.get_num_rows() * mat.block_dimy ) % block_dimy;
 
         if ( extra_start > 0 )
@@ -660,15 +668,17 @@ Matrix< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> > ::convert( 
         FatalError("Input matrix for conversion doesn't have COO or CSR format", AMGX_ERR_CONFIGURATION);
     }
 
+    // if DIAG prop - append diagonal values to the end
     if ( this->hasProps(DIAG) )
     {
         new_values.insert(new_values.end(), new_dia_values.begin(), new_dia_values.end());
     }
     else
-        for ( int b = 0; b < block_size; b++ )
-        {
-            new_values.push_back( types::util<value_type>::get_zero() );
-        }
+    // otherwise - append zero-block to the end (isn't it deprecated?)
+    for ( int b = 0; b < block_size; b++ )
+    {
+        new_values.push_back( types::util<value_type>::get_zero() );
+    }
 
     this->resize( new_num_rows, new_num_cols, new_num_nnz, block_dimy, block_dimx );
     this->values.copy( new_values );
@@ -700,6 +710,7 @@ Matrix< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> > ::convert( 
         computeRowOffsets();
     }
 
+    this->set_allow_recompute_diag(true);
     computeDiagonal();
     this->set_initialized(1);
 }

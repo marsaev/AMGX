@@ -754,30 +754,54 @@ struct fillRandom < Matrix<TConfig> >
     static void fill(Matrix<TConfig> &A)
     {
         typedef Vector< TemplateConfig<AMGX_host, TConfig::vecPrec, TConfig::matPrec, TConfig::indPrec> > Vector_h;
-        Vector_h tV( (A.get_num_nz() + (A.hasProps(DIAG) ? A.get_num_rows() : 1)) * A.get_block_size() );
+        Vector_h tV( (A.get_num_nz() + (A.hasProps(DIAG) ? A.get_num_rows() : 0)) * A.get_block_size() );
 
-        if (A.hasProps(DIAG))
+        int blockdimx = A.get_block_dimx();
+        int blockdimy = A.get_block_dimy();
+        int blocksize = blockdimy*blockdimx;
+
+        // fill with random values
+        for (unsigned int i = 0; i < tV.size(); i++)
         {
-            for (unsigned int i = 0; i < tV.size(); i++)
+            tV[i] = ( ((float)(rand()) / RAND_MAX) - 0.5 ) * 2;
+        }
+
+        // mod each block 
+        for (int vidx = 0; vidx < A.get_num_nz() + (A.hasProps(DIAG) ? A.get_num_rows() : 0); vidx++)
+        {
+            // real values only for now
+            for (int y = 0; y < blockdimy; y++)
             {
-                tV[i] = ( ((float)(rand()) / RAND_MAX) - 0.5 ) * 2 * (i >= A.get_num_nz()*A.get_block_size() ? 10 : 1);
+                ValueType v = (ValueType)0.;
+                for (int x = 0; x < blockdimx; x++)
+                {
+                    v += std::abs(tV[vidx*blocksize + y*blockdimx + x]);
+                }
+                tV[vidx*blocksize + y*blockdimx + y] += 
+                    v*(std::signbit(tV[vidx*blocksize + y*blockdimx + y]) ? -1. : 1.);
             }
         }
-        else
+
+        // sum over row blocks
+        for (int r = 0; r < A.get_num_rows(); r++)
         {
-            for (int r = 0; r < A.get_num_rows(); r++)
+            std::vector<ValueType> rv(blocksize, (ValueType)0.);
+            for (int cidx = A.row_offsets[r]; cidx < A.row_offsets[r+1]; cidx++)
             {
-                for (int cidx = A.row_offsets[r]; cidx < A.row_offsets[r+1]; cidx++)
+                if (!A.hasProps(DIAG) && A.col_indices[cidx] == r) 
+                    continue;
+                for (int xy = 0; xy < blocksize; xy++)
                 {
-                    tV[cidx] = ( ((float)(rand()) / RAND_MAX) - 0.5 ) * 2 * (r == A.col_indices[cidx] ? 10 : 1);
+                    rv[xy] += std::abs(tV[cidx*blocksize + xy]);
                 }
             }
-
-            for (unsigned int i = A.get_num_nz() * A.get_block_size(); i < tV.size(); i++)
+            
+            for (int xy = 0; xy < blocksize; xy++)
             {
-                tV[i] = 0;
+                tV[A.diag[r]*blocksize + xy] += 
+                    rv[xy]*(std::signbit(tV[A.diag[r]*blocksize + xy]) ? -1. : 0.);
             }
-        }
+        }   
 
         bool was_initialized = A.is_initialized();
         A.set_initialized(0);

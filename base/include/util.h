@@ -270,12 +270,13 @@ struct printMatrix<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >
     {
         FILE *fid = fopen(fname, "w");
         fprintf(fid, "Numrows: %d, NNZ: %d, block_dimy: %d, block_dimx: %d\n", A.get_num_rows(), A.get_num_nz(), A.get_block_dimy(), A.get_block_dimx());
-        unsigned int diag_count = 0;
-        unsigned int offdiag_count = 0;
+        //unsigned int diag_count = 0;
+        //unsigned int offdiag_count = 0;
+        size_t block_size = A.get_block_size();
 
         for (int i = 0; i < A.get_num_rows(); ++i)
         {
-            // Print diagonal coefficients
+            // Print diagonal coefficients first if off-diagonal 
             if (A.hasProps(DIAG))
             {
                 fprintf(fid, "%9d %9d\n", i, i);
@@ -284,9 +285,9 @@ struct printMatrix<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >
                 {
                     fprintf(fid, "   ");
 
-                    for (int je = 0; je < A.get_block_dimx(); ++je, ++diag_count)
+                    for (int je = 0; je < A.get_block_dimx(); ++je)
                     {
-                        fprintf(fid, " %23.16e", A.values[A.diag[diag_count]]);
+                        fprintf(fid, " %23.16e", A.values[A.diag[i]*block_size + ie*A.get_block_dimx() + je]);
                     }
 
                     fprintf(fid, "\n");
@@ -303,9 +304,9 @@ struct printMatrix<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >
                 {
                     fprintf(fid, "   ");
 
-                    for (int je = 0; je < A.get_block_dimx(); ++je, ++offdiag_count)
+                    for (int je = 0; je < A.get_block_dimx(); ++je)
                     {
-                        fprintf(fid, " %23.16e", A.values[offdiag_count]);
+                        fprintf(fid, " %23.16e", A.values[ip*block_size + ie*A.get_block_dimx() + je]);
                     }
 
                     fprintf(fid, "\n");

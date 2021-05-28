@@ -52,11 +52,11 @@ void run()
     std::vector< aggregation::Selector<TConfig>* > selectors;
     std::vector<std::string> selector_names;
     selectors.push_back(new aggregation::size2_selector::Size2Selector<T_Config>(cfg, "default"));
-    selectors.push_back(new aggregation::size8_selector::Size8Selector<T_Config>(cfg, "default"));
     selectors.push_back(new aggregation::size4_selector::Size4Selector<T_Config>(cfg, "default"));
+    selectors.push_back(new aggregation::size8_selector::Size8Selector<T_Config>(cfg, "default"));
     selector_names.push_back("Size2");
-    selector_names.push_back("Size8");
     selector_names.push_back("Size4");
+    selector_names.push_back("Size8");
 
     for (unsigned int i = 0; i < selectors.size(); i++)
     {
@@ -64,29 +64,31 @@ void run()
         UNITTEST_ASSERT_TRUE(selectors[i] != NULL);
     }
 
-    Matrix_h A_h;
-    IVector vec1, vec2, vec3;
-    int num1 = 0, num2 = -1;
-
     // check different block sizes
-    for (int bsize = 1; bsize < 5; bsize++)
+    for (int bsize = 2; bsize < 6; bsize++)
     {
+        Matrix_h A_h;
+        int num1 = -1, num2 = -1;
         // Create random scalar matrix with diagonal inside
         generateMatrixRandomStruct<TConfig_h>::generate(A_h, 1000, 0, bsize, false);
         random_fill(A_h);
         // Create a new matrix with diagonal outside
         Matrix_h A_diag_h;
-        A_diag_h.convert(A_h, DIAG | CSR, bsize, bsize);
+        A_diag_h.convert(A_h, DIAG | CSR, bsize, bsize);        
         MatrixA A, A_diag;
         A = A_h;
         A_diag = A_diag_h;
 
+        IVector vec1, vec2, vec3;
+        IVector_h vec1_h, vec2_h;
         for (unsigned int i = 0; i < selectors.size(); i++)
         {
-            selectors[i]->setAggregates(A, vec1, vec3, num1);
+            selectors[i]->setAggregates(A     , vec1, vec3, num1);
             selectors[i]->setAggregates(A_diag, vec2, vec3, num2);
+            vec1_h = vec1; 
+            vec2_h = vec2;
             PrintOnFail(selector_names[i].c_str());
-            PrintOnFail(": Deterministic aggregates: got %d and %d for one matrix\n", num1, num2);
+            PrintOnFail(": Deterministic aggregates: got %d and %d for one matrix, blocksize: %d\n", num1, num2, bsize);
             UNITTEST_ASSERT_EQUAL(vec1, vec2);
         }
     }
