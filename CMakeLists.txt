@@ -29,7 +29,6 @@ cmake_minimum_required (VERSION 3.18)
 # the project
 project (AMG LANGUAGES C CXX CUDA)
 
-find_package(MPI)
 find_package(OpenMP)
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake" ${CMAKE_MODULE_PATH})
@@ -111,11 +110,6 @@ if (${AMGX_NO_RPATH})
   set(CMAKE_SKIP_RPATH TRUE)
 endif (${AMGX_NO_RPATH})
 
-if (DEFINED ENV{CRAY_MPICH2_DIR})
-  set(MPI_C_LIBRARIES "$ENV{CRAY_MPICH2_DIR}/lib/libmpich.so")
-  set(MPI_C_INCLUDE_PATH "$ENV{CRAY_MPICH2_DIR}/include")
-endif(DEFINED ENV{CRAY_MPICH2_DIR})
-
 # Thrust:
 if (DEFINED ENV{THRUST_ROOT})
   set (THRUST_DIR $ENV{THRUST_ROOT})
@@ -134,6 +128,7 @@ if (CMAKE_NO_MPI)
   message("Non-MPI build has been forced")
   set(MPI_FOUND false)
 else (CMAKE_NO_MPI)
+  find_package(MPI)
   if(MPI_FOUND)
     include_directories(${MPI_INCLUDE_PATH})
     set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -DAMGX_WITH_MPI)
@@ -142,6 +137,11 @@ else (CMAKE_NO_MPI)
       set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -DOMPI_IMPORTS)
     endif(WIN32)
   endif(MPI_FOUND)
+
+  if (DEFINED ENV{CRAY_MPICH2_DIR})
+    set(MPI_C_LIBRARIES "$ENV{CRAY_MPICH2_DIR}/lib/libmpich.so")
+    set(MPI_C_INCLUDE_PATH "$ENV{CRAY_MPICH2_DIR}/include")
+  endif(DEFINED ENV{CRAY_MPICH2_DIR})
 endif (CMAKE_NO_MPI)
 
 message ("This is a MPI build:" ${MPI_FOUND})

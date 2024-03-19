@@ -46,6 +46,12 @@ AMGX_RC AMGX_API AMGX_eigensolver_pagerank_setup(AMGX_eigensolver_handle eigenso
 
 AMGX_RC AMGX_API AMGX_eigensolver_solve(AMGX_eigensolver_handle eigensolver, AMGX_vector_handle x);
 
+AMGX_RC AMGX_API AMGX_eigensolver_vals_count(AMGX_eigensolver_handle eigensolver, int *eigenvalues_num);
+AMGX_RC AMGX_API AMGX_eigensolver_vectors_count(AMGX_eigensolver_handle eigensolver, int *eigenvectors_num);
+
+AMGX_RC AMGX_API AMGX_eigensolver_get_value(AMGX_eigensolver_handle eigensolver, int index, void* x);
+AMGX_RC AMGX_API AMGX_eigensolver_get_vector(AMGX_eigensolver_handle eigensolver, int index, AMGX_vector_handle x);
+
 AMGX_RC AMGX_API AMGX_eigensolver_destroy(AMGX_eigensolver_handle obj);
 
 #if defined(__cplusplus)

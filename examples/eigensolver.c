@@ -180,11 +180,11 @@ int main(int argc, const char **argv)
   AMGX_SAFE_CALL(AMGX_vector_create(&x, rsrc, mode));
   AMGX_SAFE_CALL(AMGX_vector_create(&soln, rsrc, mode));
 
+  int n = 0;
+  int xsize_x = 0, xsize_y = 0;
   if ((pidx = findParamIndex(argv, argc, "-m")) != -1)
   {
     AMGX_SAFE_CALL(AMGX_read_system(A, b, soln, argv[pidx + 1]));
-    int n = 0;
-    int xsize_x = 0, xsize_y = 0;
     AMGX_SAFE_CALL(AMGX_matrix_get_size(A, &n, &xsize_x, &xsize_y));
     AMGX_SAFE_CALL(AMGX_vector_set_random(x, n));
   }
@@ -198,9 +198,35 @@ int main(int argc, const char **argv)
   // setup
   AMGX_SAFE_CALL(AMGX_eigensolver_setup(eigensolver, A));
   // PageRank setup
-  AMGX_SAFE_CALL(AMGX_eigensolver_pagerank_setup(eigensolver, b));
+  //AMGX_SAFE_CALL(AMGX_eigensolver_pagerank_setup(eigensolver, b));
   // solve
   AMGX_SAFE_CALL(AMGX_eigensolver_solve(eigensolver, x));
+
+
+  int eigenvalues_num = 0, eigenvectors_num = 0;
+  AMGX_SAFE_CALL(AMGX_eigensolver_vals_count(eigensolver, &eigenvalues_num));
+  AMGX_SAFE_CALL(AMGX_eigensolver_vectors_count(eigensolver, &eigenvectors_num));
+
+  printf("EigenSolver resulted in %d eigenvalues and %d eigenvectors\n", eigenvalues_num, eigenvectors_num);
+
+  printf("Eigenvalues: \n");
+  for (int lambdai = 0; lambdai < eigenvalues_num; lambdai++)
+  {
+    double l = 0.0;
+    AMGX_SAFE_CALL(AMGX_eigensolver_get_value(eigensolver, lambdai, &l));
+    printf("Eigenvalue #%d: %g\n", lambdai, l);
+  }
+
+  printf("Eigenvectors: \n");
+  for (int lambdai = 0; lambdai < eigenvectors_num; lambdai++)
+  {
+    printf("Vector #%d\n", lambdai);
+    AMGX_SAFE_CALL(AMGX_eigensolver_get_vector(eigensolver, lambdai, x));
+    double* y = malloc(sizeof(double)*n);
+    AMGX_SAFE_CALL(AMGX_vector_download(x, y));
+    for (int i = 0; i < n; ++i)
+      printf("[%d]: %g\n", i, *(y + i));
+  }
 
   // prints all residual, uncomment to enable
   /*int iters = 0;

@@ -66,6 +66,7 @@ template <class T_Config> class EigenSolver;
 template <class T_Config>
 class AMG_EigenSolver
 {
+    public:
         static const AMGX_VecPrecision vecPrec = T_Config::vecPrec;
         static const AMGX_MatPrecision matPrec = T_Config::matPrec;
         static const AMGX_IndPrecision indPrec = T_Config::indPrec;
@@ -86,7 +87,6 @@ class AMG_EigenSolver
         typedef Vector<PODConfig_h> PODVector_h;
         typedef Vector<PODConfig_d> PODVector_d;
 
-    public:
         AMG_EigenSolver(Resources *res, AMG_Configuration *cfg = NULL);     // new in API v2, grab configuration by the pointer (if NULL - from resources), saves the pointer
         AMG_EigenSolver(Resources *res, AMG_Configuration &cfg);           // external configuration, saves the copy
         AMG_EigenSolver(const AMG_EigenSolver<T_Config>  &amg_solver);

@@ -167,6 +167,80 @@ inline AMGX_ERROR eigensolve_solve(AMGX_eigensolver_handle slv,
     return ret;
 }
 
+template<AMGX_Mode CASE,
+         template<typename> class SolverType>
+inline AMGX_ERROR eigensolve_get_info(AMGX_eigensolver_handle slv,
+                                   int* vals_num,
+                                   int* vec_num)
+{
+    typedef SolverType<typename TemplateMode<CASE>::Type> SolverLetterT;
+    typedef CWrapHandle<AMGX_eigensolver_handle, SolverLetterT> SolverW;
+    SolverW wrapSolver(slv);
+    SolverLetterT &solver = *wrapSolver.wrapped();
+
+    if (vals_num)
+        *vals_num = solver.getSolverObject()->get_eigenvalues().size();
+    if (vec_num)
+        *vec_num = solver.getSolverObject()->get_eigenvectors().size();
+
+    return AMGX_OK;
+}
+
+template<AMGX_Mode CASE,
+         template<typename> class SolverType>
+inline AMGX_ERROR eigensolve_get_value(AMGX_eigensolver_handle slv,
+                                   void* val,
+                                   int idx)
+{
+    typedef SolverType<typename TemplateMode<CASE>::Type> SolverLetterT;
+    typedef CWrapHandle<AMGX_eigensolver_handle, SolverLetterT> SolverW;
+    SolverW wrapSolver(slv);
+    SolverLetterT &solver = *wrapSolver.wrapped();
+
+    typedef typename SolverLetterT::ValueTypeB value_type;
+
+    if (idx < solver.getSolverObject()->get_eigenvalues().size())
+        static_cast<value_type*>(val)[0] = solver.getSolverObject()->get_eigenvalues()[idx];
+    else
+        return AMGX_ERR_BAD_PARAMETERS;
+
+    return AMGX_OK;
+}
+
+template<AMGX_Mode CASE,
+         template<typename> class SolverType,
+         template<typename> class VectorType>
+inline AMGX_ERROR eigensolve_get_vector(AMGX_eigensolver_handle slv,
+                                   AMGX_vector_handle vec,
+                                   int idx)
+{
+    typedef SolverType<typename TemplateMode<CASE>::Type> SolverLetterT;
+    typedef CWrapHandle<AMGX_eigensolver_handle, SolverLetterT> SolverW;
+    typedef VectorType<typename TemplateMode<CASE>::Type> VectorLetterT;
+    typedef CWrapHandle<AMGX_vector_handle, VectorLetterT> VectorW;
+    SolverW wrapSolver(slv);
+    SolverLetterT &solver = *wrapSolver.wrapped();
+    VectorW wrapVec(vec);
+    VectorLetterT &x = *wrapVec.wrapped();
+
+    if (wrapVec.mode() != wrapSolver.mode())
+    {
+        FatalError("Error: mismatch between X mode and Solver Mode.\n", AMGX_ERR_BAD_PARAMETERS);
+    }
+
+    if (x.getResources() != solver.getResources())
+    {
+        FatalError("Error: Inconsistency between solver and X resources object, exiting", AMGX_ERR_BAD_PARAMETERS);
+    }
+
+    if (idx < solver.getSolverObject()->get_eigenvectors().size())
+        x = solver.getSolverObject()->get_eigenvectors()[idx];
+    else
+        return AMGX_ERR_BAD_PARAMETERS;
+
+    return AMGX_OK;
+}
+
 
 
 }
@@ -296,6 +370,128 @@ extern "C" {
             {
 #define AMGX_CASE_LINE(CASE) case CASE: { \
         AMGX_ERROR rcs = eigensolve_solve<CASE, AMG_EigenSolver, Vector>(eigensolver, x, resources); \
+        AMGX_CHECK_API_ERROR(rcs, resources); break;\
+      }
+                    AMGX_FORALL_BUILDS(AMGX_CASE_LINE)
+                    AMGX_FORCOMPLEX_BUILDS(AMGX_CASE_LINE)
+#undef AMGX_CASE_LINE
+
+                default:
+                    AMGX_CHECK_API_ERROR(AMGX_ERR_BAD_MODE, resources)
+            }
+        }
+
+        AMGX_CATCHES(rc)
+        return getCAPIerror_x(rc);
+    }
+
+    AMGX_RC AMGX_eigensolver_vals_count(AMGX_eigensolver_handle eigensolver, int *eigenvalues_num)
+    {
+        Resources *resources;
+        AMGX_CHECK_API_ERROR(getAMGXerror(getResourcesFromEigenSolverHandle(eigensolver, &resources)), NULL);
+        AMGX_ERROR rc = AMGX_OK;
+
+        if (!eigenvalues_num)
+            return AMGX_RC_BAD_PARAMETERS;
+
+        AMGX_TRIES()
+        {
+            AMGX_Mode mode = get_mode_from<AMGX_eigensolver_handle>(eigensolver);
+
+            switch (mode)
+            {
+#define AMGX_CASE_LINE(CASE) case CASE: { \
+        AMGX_ERROR rcs = eigensolve_get_info<CASE, AMG_EigenSolver>(eigensolver, eigenvalues_num, nullptr); \
+        AMGX_CHECK_API_ERROR(rcs, resources); break;\
+      }
+                    AMGX_FORALL_BUILDS(AMGX_CASE_LINE)
+                    AMGX_FORCOMPLEX_BUILDS(AMGX_CASE_LINE)
+#undef AMGX_CASE_LINE
+
+                default:
+                    AMGX_CHECK_API_ERROR(AMGX_ERR_BAD_MODE, resources)
+            }
+        }
+
+        AMGX_CATCHES(rc)
+        return getCAPIerror_x(rc);
+    }
+    
+    AMGX_RC AMGX_API AMGX_eigensolver_vectors_count(AMGX_eigensolver_handle eigensolver, int *eigenvectors_num)
+    {
+        Resources *resources;
+        AMGX_CHECK_API_ERROR(getAMGXerror(getResourcesFromEigenSolverHandle(eigensolver, &resources)), NULL);
+        AMGX_ERROR rc = AMGX_OK;
+
+        if (!eigenvectors_num)
+            return AMGX_RC_BAD_PARAMETERS;
+
+        AMGX_TRIES()
+        {
+            AMGX_Mode mode = get_mode_from<AMGX_eigensolver_handle>(eigensolver);
+
+            switch (mode)
+            {
+#define AMGX_CASE_LINE(CASE) case CASE: { \
+        AMGX_ERROR rcs = eigensolve_get_info<CASE, AMG_EigenSolver>(eigensolver, nullptr, eigenvectors_num); \
+        AMGX_CHECK_API_ERROR(rcs, resources); break;\
+      }
+                    AMGX_FORALL_BUILDS(AMGX_CASE_LINE)
+                    AMGX_FORCOMPLEX_BUILDS(AMGX_CASE_LINE)
+#undef AMGX_CASE_LINE
+
+                default:
+                    AMGX_CHECK_API_ERROR(AMGX_ERR_BAD_MODE, resources)
+            }
+        }
+
+        AMGX_CATCHES(rc)
+        return getCAPIerror_x(rc);
+    }
+
+    AMGX_RC AMGX_API AMGX_eigensolver_get_value(AMGX_eigensolver_handle eigensolver, int index, void* x)
+    {
+        Resources *resources;
+        AMGX_CHECK_API_ERROR(getAMGXerror(getResourcesFromEigenSolverHandle(eigensolver, &resources)), NULL);
+        AMGX_ERROR rc = AMGX_OK;
+
+        AMGX_TRIES()
+        {
+            AMGX_Mode mode = get_mode_from<AMGX_eigensolver_handle>(eigensolver);
+
+            switch (mode)
+            {
+#define AMGX_CASE_LINE(CASE) case CASE: { \
+        AMGX_ERROR rcs = eigensolve_get_value<CASE, AMG_EigenSolver>(eigensolver, x, index); \
+        AMGX_CHECK_API_ERROR(rcs, resources); break;\
+      }
+                    AMGX_FORALL_BUILDS(AMGX_CASE_LINE)
+                    AMGX_FORCOMPLEX_BUILDS(AMGX_CASE_LINE)
+#undef AMGX_CASE_LINE
+
+                default:
+                    AMGX_CHECK_API_ERROR(AMGX_ERR_BAD_MODE, resources)
+            }
+        }
+
+        AMGX_CATCHES(rc)
+        return getCAPIerror_x(rc);
+    }
+
+    AMGX_RC AMGX_API AMGX_eigensolver_get_vector(AMGX_eigensolver_handle eigensolver, int index, AMGX_vector_handle x)
+    {
+        Resources *resources;
+        AMGX_CHECK_API_ERROR(getAMGXerror(getResourcesFromEigenSolverHandle(eigensolver, &resources)), NULL);
+        AMGX_ERROR rc = AMGX_OK;
+
+        AMGX_TRIES()
+        {
+            AMGX_Mode mode = get_mode_from<AMGX_eigensolver_handle>(eigensolver);
+
+            switch (mode)
+            {
+#define AMGX_CASE_LINE(CASE) case CASE: { \
+        AMGX_ERROR rcs = eigensolve_get_vector<CASE, AMG_EigenSolver, Vector>(eigensolver, x, index); \
         AMGX_CHECK_API_ERROR(rcs, resources); break;\
       }
                     AMGX_FORALL_BUILDS(AMGX_CASE_LINE)
