@@ -13,9 +13,16 @@ target_sources(amgx_libs PRIVATE ${SRCS})
 
 target_include_directories(amgx_libs PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
-#copy configs to build directory
-add_custom_target(copy_configs_core ALL)
-add_custom_command(TARGET copy_configs_core COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/configs" "${CMAKE_BINARY_DIR}/configs/core")
+GET_FILENAME_COMPONENT(CMAKE_C_COMPILER_NAME "${CMAKE_C_COMPILER}" NAME)
+IF(CMAKE_C_COMPILER_NAME MATCHES cl)
+    set(libs_all CUDA::cusparse CUDA::cublas)
+ELSE()
+    set(libs_all CUDA::cusparse CUDA::cublas rt dl)
+ENDIF()
+
+# copy configs to build directory
+add_custom_target(copy_configs ALL)
+add_custom_command(TARGET copy_configs COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/configs" "${CMAKE_BINARY_DIR}/configs")
 
 install(FILES 
     "${CMAKE_CURRENT_SOURCE_DIR}/configs/AGGREGATION_DILU.json"
@@ -48,7 +55,7 @@ install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/configs/PCGF_CLASSICAL_F_JACOBI.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/configs/PCGF_CLASSICAL_V_JACOBI.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/configs/PCGF_CLASSICAL_W_JACOBI.json"
-    DESTINATION "lib/configs")
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/configs")
 
 set(AMGX_INCLUDES ../include)
 
@@ -78,15 +85,6 @@ target_compile_options(amgx_tests_library PUBLIC $<$<COMPILE_LANGUAGE:CUDA>: ${C
 
 target_include_directories(amgx_tests_launcher PRIVATE ${AMGX_INCLUDES}) 
 
-# create executables for host and device, scalar and block version
-
-GET_FILENAME_COMPONENT(CMAKE_C_COMPILER_NAME "${CMAKE_C_COMPILER}" NAME)
-IF(CMAKE_C_COMPILER_NAME MATCHES cl)
-    set(libs_all CUDA::cusparse CUDA::cublas)
-ELSE()
-    set(libs_all CUDA::cusparse CUDA::cublas rt dl)
-ENDIF()
-
 target_link_libraries(amgx_tests_launcher amgx_tests_library amgxsh ${libs_all} OpenMP::OpenMP_C)
 
 if(MPI_FOUND)
@@ -94,6 +92,6 @@ if(MPI_FOUND)
 endif(MPI_FOUND)
 
 if(NOT ${CMAKE_BUILD_TYPE} MATCHES "Release")
-  install(TARGETS amgx_tests_launcher DESTINATION "lib/tests")
+  install(TARGETS amgx_tests_launcher DESTINATION "${CMAKE_INSTALL_PREFIX}/tests")
 endif(NOT ${CMAKE_BUILD_TYPE} MATCHES "Release")
 

@@ -284,12 +284,12 @@ set_target_properties(amgx PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH}")
 set_target_properties(amgxsh PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH}")
 
 install(FILES
-  include/amgx_config.h
-  include/amgx_c.h
-  DESTINATION include)
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/amgx_config.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/amgx_c.h
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/include")
 
-install(TARGETS amgx   DESTINATION "lib")
-install(TARGETS amgxsh DESTINATION "lib")
+install(TARGETS amgx   DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
+install(TARGETS amgxsh DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
 
 #export(TARGETS amgxsh FILE ${CMAKE_CURRENT_SOURCE_DIR}/amgxsh.cmake)
 

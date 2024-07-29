@@ -117,7 +117,7 @@ if(MPI_FOUND)
 
 endif(MPI_FOUND)
 
-install(TARGETS amgx_capi DESTINATION "lib/examples")
+install(TARGETS amgx_capi DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 if(MPI_FOUND)
-  install(TARGETS amgx_mpi_capi amgx_mpi_capi_agg amgx_mpi_capi_cla amgx_mpi_poisson7 DESTINATION "lib/examples")
+  install(TARGETS amgx_mpi_capi amgx_mpi_capi_agg amgx_mpi_capi_cla amgx_mpi_poisson7 DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 endif(MPI_FOUND)
