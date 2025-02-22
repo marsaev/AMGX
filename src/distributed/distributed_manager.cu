@@ -3158,7 +3158,8 @@ class add_constant_op
 };
 
 template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
-void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPrec> >::obtain_shift_l2g_reordering(index_type n, I64Vector_d &l2g, IVector_d &p, IVector_d &q)
+template <typename OutVector> // IVector_d or IVector64_d
+void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPrec> >::obtain_shift_l2g_reordering(index_type n, I64Vector_d &l2g, IVector_d &p, OutVector &q)
 {
     /* WARNING: Exchange halo of the inverse_reordering, which is implicitly based on the local_to_global_map (l2g).
                 Notice that it is implicit in the exchange_halo routine, since you are getting exactly the vector
@@ -3172,23 +3173,45 @@ void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indP
     index_type tag = 1 * 133 + 3 * 7 + 0; //some random number for the tag
     index_type l = p.size();
     q.resize(l);
-    amgx::thrust::copy     (p.begin(), p.end(),     q.begin());
-    thrust_wrapper::transform<AMGX_device>(q.begin(), q.end(),     q.begin(), add_constant_op<index_type>(this->part_offsets[this->global_id()]));
+    amgx::thrust::copy(p.begin(), p.end(),     q.begin());
+    using out_index_type = typename OutVector::index_type;
+    thrust_wrapper::transform<AMGX_device>(q.begin(), q.end(),     q.begin(), add_constant_op<out_index_type>(this->part_offsets[this->global_id()]));
     this->exchange_halo(q, tag);
     thrust_wrapper::sequence <AMGX_device>(q.begin(), q.begin() + n);
-    thrust_wrapper::transform<AMGX_device>(q.begin(), q.begin() + n, q.begin(), add_constant_op<index_type>(this->part_offsets[this->global_id()]));
+    thrust_wrapper::transform<AMGX_device>(q.begin(), q.begin() + n, q.begin(), add_constant_op<out_index_type>(this->part_offsets[this->global_id()]));
     cudaCheckError();
 }
 
+// temporary struct helper to get vector type based on typename
+template <typename Config, typename I>
+struct int_type_selector;
+
+template <typename Config>
+struct int_type_selector <Config, int>{
+    static const AMGX_VecPrecision NewIntVec = AMGX_vecInt;
+
+    typedef typename Config::template setVecPrec<NewIntVec>::Type GlobalIntConfig;
+    typedef Vector<GlobalIntConfig> Type;
+};
+
+template <typename Config>
+struct int_type_selector <Config, int64_t>{
+    static const AMGX_VecPrecision NewIntVec = AMGX_vecInt64;
+
+    typedef typename Config::template setVecPrec<NewIntVec>::Type GlobalIntConfig;
+    typedef Vector<GlobalIntConfig> Type;
+};
+
 template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
-void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition(index_type *Bp, index_type *Bc, mat_value_type *Bv)
+template <typename index_type_out>
+void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition_impl(index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv)
 {
     index_type l, n, nnz, offset, block_dimx, block_dimy;
     index_type     *ir;
     index_type     *Ap;
     index_type     *Ac;
     mat_value_type *Av;
-    IVector q;
+    typename int_type_selector<TConfig, index_type_out>::Type q;
     //some initializations
     this->A->getOffsetAndSizeForView(OWNED, &offset, &n);
     this->A->getNnzForView(OWNED, &nnz);
@@ -3203,7 +3226,8 @@ void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indP
     Av = this->A->values.raw();
     //(i) reorder the matrix back (into mixed interior-boundary nodes)
     //applies to rows and columns (out-of-place)
-    reorder_partition<index_type, mat_value_type, true, true>
+    // note that this doesn't change indices types yet, so we still using index_type
+    reorder_partition<index_type, index_type_out, index_type, mat_value_type, true, true>
 	(n, nnz, Ap, Ac, Av, Bp, Bc, Bv, l, ir, block_dimx, block_dimy);
     cudaCheckError();
     //obtain reordering q that combines the shift of the diagonal block with the off-diagonal block indices conversion from local to global
@@ -3211,9 +3235,21 @@ void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indP
     cudaCheckError();
     //(ii) reorder the matrix back (shift the diagonal block and convert off-diagonal block column indices from local to global)
     //applies columns only (in-place)
-    reorder_partition<index_type, mat_value_type, false, true>
+    reorder_partition<index_type_out, index_type_out, index_type_out, mat_value_type, false, true>
     (n, nnz, Bp, Bc, Bv, Bp, Bc, Bv, q.size(), q.raw(), block_dimx, block_dimy);
     cudaCheckError();
+}
+
+template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
+void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition(int *Bp, int *Bc, mat_value_type *Bv)
+{ 
+    unpack_partition_impl<int>(Bp, Bc, Bv); 
+}
+
+template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
+void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition(int64_t *Bp, int64_t *Bc, mat_value_type *Bv) 
+{ 
+    unpack_partition_impl<int64_t>(Bp, Bc, Bv); 
 }
 
 template <class TConfig>
@@ -5666,7 +5702,8 @@ void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPre
 }
 
 template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
-void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >::obtain_shift_l2g_reordering(index_type n, I64Vector_h &l2g, IVector_h &p, IVector_h &q)
+template <typename OutVector> // IVector_d or IVector64_d
+void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >::obtain_shift_l2g_reordering(index_type n, I64Vector_h &l2g, IVector_h &p, OutVector &q)
 {
     if (this->neighbors.size() > 0)
     {
@@ -5675,12 +5712,25 @@ void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPre
 }
 
 template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
-void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition(index_type *Bp, index_type *Bc, mat_value_type *Bv)
+template <typename index_type_out>
+void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition_impl(index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv)
 {
     if (this->neighbors.size() > 0)
     {
         FatalError("Distributed solve only supported on devices", AMGX_ERR_NOT_IMPLEMENTED);
     }
+}
+
+template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
+void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition(int *Bp, int *Bc, mat_value_type *Bv)
+{ 
+    unpack_partition_impl<int>(Bp, Bc, Bv); 
+}
+
+template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
+void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition(int64_t *Bp, int64_t *Bc, mat_value_type *Bv) 
+{ 
+    unpack_partition_impl<int64_t>(Bp, Bc, Bv); 
 }
 
 template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
@@ -6158,6 +6208,14 @@ AMGX_FORCOMPLEX_BUILDS(AMGX_CASE_LINE)
 AMGX_FORALL_BUILDS(AMGX_CASE_LINE)
 AMGX_FORCOMPLEX_BUILDS(AMGX_CASE_LINE)
 #undef AMGX_CASE_LINE
+
+/*#define AMGX_CASE_LINE(CASE) template void DistributedManager<TemplateMode<CASE>::Type>::unpack_partition_impl( \
+    int, int, mat_value_type*); \
+    template void DistributedManager<TemplateMode<CASE>::Type>::unpack_partition_impl( \
+    int64_t, int64_t, mat_value_type*);
+AMGX_FORALL_BUILDS(AMGX_CASE_LINE)
+AMGX_FORCOMPLEX_BUILDS(AMGX_CASE_LINE)
+#undef AMGX_CASE_LINE*/
 
 #define AMGX_CASE_LINE(CASE) template class DistributedManagerBase<TemplateMode<CASE>::Type >;
 AMGX_FORALL_BUILDS(AMGX_CASE_LINE)

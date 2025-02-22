@@ -11,6 +11,7 @@
 #include <map>
 #include <iterator>
 #include <algorithm>
+#include <array>
 #include <amgx_types/util.h>
 #include <amgx_types/io.h>
 

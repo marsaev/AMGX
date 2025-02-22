@@ -4,10 +4,10 @@
 
 #pragma once
 
-template <typename index_type, typename mat_value_type, bool reorder_rows, bool reorder_cols>
+template <typename index_type, typename index_type_out, typename map_type, typename mat_value_type, bool reorder_rows, bool reorder_cols>
 void reorder_partition_host(index_type n, index_type nnz, index_type *Ap, index_type *Ac, mat_value_type *Av,
-                            index_type *Bp, index_type *Bc, mat_value_type *Bv, index_type l, index_type *p,
-			                      index_type block_dimx, index_type block_dimy)
+                            index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv, index_type l, map_type *p,
+			                index_type block_dimx, index_type block_dimy)
 {
     //applies reordering P from left adn right on matrix A, so that B=P'*A*P.
     //notice that matrix A may be rectangular (does not need to be square).
@@ -50,10 +50,12 @@ void reorder_partition_host(index_type n, index_type nnz, index_type *Ap, index_
     }
 }
 
-template <typename index_type, typename mat_value_type, bool reorder_rows, bool reorder_cols>
+
+// 
+template <typename index_type, typename index_type_out, typename map_type, typename mat_value_type, bool reorder_rows, bool reorder_cols>
 void reorder_partition(index_type n, index_type nnz, index_type *Ap, index_type *Ac, mat_value_type *Av,
-                       index_type *Bp, index_type *Bc, mat_value_type *Bv, index_type l, index_type *p,
-		       index_type block_dimx, index_type block_dimy)
+                       index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv, index_type l, map_type *p,
+		               index_type block_dimx, index_type block_dimy)
 {
     using namespace amgx;
     cudaError_t st1, st2, st3, st4;
@@ -65,15 +67,15 @@ void reorder_partition(index_type n, index_type nnz, index_type *Ap, index_type 
     index_type     *Ap_h = NULL;
     index_type     *Ac_h = NULL;
     mat_value_type *Av_h = NULL;
-    index_type     *Bp_h = NULL;
-    index_type     *Bc_h = NULL;
+    index_type_out *Bp_h = NULL;
+    index_type_out *Bc_h = NULL;
     mat_value_type *Bv_h = NULL;
     p_h  = (index_type *)malloc(    l * sizeof( p_h[0]));
     Ap_h = (index_type *)malloc((n + 1) * sizeof(Ap_h[0]));
     Ac_h = (index_type *)malloc(  nnz * sizeof(Ac_h[0]));
     Av_h = (mat_value_type *)malloc(  nnz * block_size * sizeof(Av_h[0]));
-    Bp_h = (index_type *)malloc((n + 1) * sizeof(Bp_h[0]));
-    Bc_h = (index_type *)malloc(  nnz * sizeof(Bc_h[0]));
+    Bp_h = (index_type_out *)malloc((n + 1) * sizeof(Bp_h[0]));
+    Bc_h = (index_type_out *)malloc(  nnz * sizeof(Bc_h[0]));
     Bv_h = (mat_value_type *)malloc(  nnz * block_size * sizeof(Bv_h[0]));
 
     if (!p_h || !Ap_h || !Ac_h || !Av_h || !Bp_h || !Bc_h || !Bv_h)
@@ -91,7 +93,7 @@ void reorder_partition(index_type n, index_type nnz, index_type *Ap, index_type 
         FatalError("reorder_partition (one of the cudaMemcpy back to host failed", AMGX_ERR_CORE);
     }
 
-    reorder_partition_host<index_type, mat_value_type, reorder_rows, reorder_cols>
+    reorder_partition_host<index_type, index_type_out, map_type, mat_value_type, reorder_rows, reorder_cols>
     (n, nnz, Ap_h, Ac_h, Av_h, Bp_h, Bc_h, Bv_h, l, p_h, block_dimx, block_dimy);
     st1 = cudaMemcpy(Bp, Bp_h, (n + 1) * sizeof(Bp[0]), cudaMemcpyHostToDevice);
     st2 = cudaMemcpy(Bc, Bc_h,  nnz * sizeof(Bc[0]), cudaMemcpyHostToDevice);

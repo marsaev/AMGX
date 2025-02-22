@@ -566,7 +566,7 @@ int main(int argc, char **argv)
     //}
 
     /* example of how to reconstruct the global matrix and write it to a file */
-    //AMGX_write_system_distributed(A, b, x, "output_system.mtx", nrings, nranks, partition_sizes, partition_vector_size, partition_vector);
+    AMGX_write_system_distributed(A, b, x, "output_system.mtx", nrings, nranks, partition_sizes, partition_vector_size, partition_vector);
 
     if ((pidx = findParamIndex(argv, argc, "-gpu")) != -1)
     {

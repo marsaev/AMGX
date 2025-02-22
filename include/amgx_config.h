@@ -172,6 +172,8 @@ typedef enum
   AMGX_FORCOMPLEX_BUILDS_DEVICE(codeLineMacro)\
   AMGX_FORCOMPLEX_BUILDS_HOST(codeLineMacro)
 
+//#define AMGX_FORCOMPLEX_BUILDS(codeLineMacro) 
+
 #define AMGX_FORINTVEC_BUILDS(codeLineMacro)\
   AMGX_FORINTVEC_BUILDS_HOST(codeLineMacro)\
   AMGX_FORINTVEC_BUILDS_DEVICE(codeLineMacro)

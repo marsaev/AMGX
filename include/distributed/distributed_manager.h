@@ -470,8 +470,13 @@ template <typename TConfig> class DistributedManagerBase
         virtual void reorder_matrix() = 0;
         virtual void reorder_matrix_owned() = 0;
 
-        virtual void obtain_shift_l2g_reordering(index_type n, I64Vector &l2g, IVector &p, IVector &q) = 0;
-        virtual void unpack_partition(index_type *Bp, index_type *Bc, mat_value_type *Bv) = 0;
+        //template <typename OutVector>
+        //virtual void obtain_shift_l2g_reordering(index_type n, I64Vector &l2g, IVector &p, IVector &q) = 0;
+
+        // for the sake of simplicity - overload
+        // dispatch on the specialization level
+        virtual void unpack_partition(int *Bp, int *Bc, mat_value_type *Bv) = 0;
+        virtual void unpack_partition(int64_t *Bp, int64_t *Bc, mat_value_type *Bv) = 0;
 
         virtual void generatePoisson7pt(int nx, int ny, int nz, int P, int Q, int R) = 0;
 
@@ -1842,8 +1847,15 @@ class DistributedManager< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indP
         void reorder_matrix();
         void reorder_matrix_owned();
 
-        void obtain_shift_l2g_reordering(index_type n, I64Vector_h &l2g, IVector_h &p, IVector_h &q);
-        void unpack_partition(index_type *Bp, index_type *Bc, mat_value_type *Bv);
+        template <typename OutVector>
+        void obtain_shift_l2g_reordering(index_type n, I64Vector_h &l2g, IVector_h &p, OutVector &q);
+
+        // force conversion to index_type_out. Now, funciton obtain_shift_l2g_reordering ignores l2g, claiming exchange_halo takes care of everything.
+        // which i don't fully understand.
+        template <typename index_type_out>
+        void unpack_partition_impl(index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv);
+        void unpack_partition(int *Bp, int *Bc, mat_value_type *Bv);// { unpack_partition_impl<int>(Bp, Bc, Bv); }
+        void unpack_partition(int64_t *Bp, int64_t *Bc, mat_value_type *Bv);// { unpack_partition_impl<int64_t>(Bp, Bc, Bv); }
 
         void generatePoisson7pt(int nx, int ny, int nz, int P, int Q, int R);
         template <typename t_colIndex>
@@ -1975,8 +1987,13 @@ class DistributedManager< TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_in
         void reorder_matrix();
         void reorder_matrix_owned();
 
-        void obtain_shift_l2g_reordering(index_type n, I64Vector_d &l2g, IVector_d &p, IVector_d &q);
-        void unpack_partition(index_type *Bp, index_type *Bc, mat_value_type *Bv);
+        template <typename OutVector>
+        void obtain_shift_l2g_reordering(index_type n, I64Vector_d &l2g, IVector_d &p, OutVector &q);
+
+        template <typename index_type_out>
+        void unpack_partition_impl(index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv);
+        void unpack_partition(int *Bp, int *Bc, mat_value_type *Bv);// { unpack_partition_impl<int>(Bp, Bc, Bv); }
+        void unpack_partition(int64_t *Bp, int64_t *Bc, mat_value_type *Bv);// { unpack_partition_impl<int64_t>(Bp, Bc, Bv); }
 
         void generatePoisson7pt(int nx, int ny, int nz, int P, int Q, int R);
         template <typename t_colIndex>

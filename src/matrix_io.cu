@@ -769,4 +769,102 @@ AMGX_FORCOMPLEX_BUILDS(AMGX_CASE_LINE)
 //AMGX_FORCOMPLEX_BUILDS_DEVICE(AMGX_CASE_LINE)
 //  template class MatrixIO<Matrix_d>;
 //  template class MatrixIO<Matrix_h>;
+
+
+/*
+template <> AMGX_ERROR writeSystemBinaryRaw_v2<
+    amgx::thrust::host_vector<int64_t>,
+    amgx::thrust::host_vector<float>,
+    amgx::thrust::host_vector<float>
+> (const char *fname, 
+        int64_t nrows,
+        int64_t nnz,
+        bool ext_diag,
+        const int bdimx,
+        const int bdimy,
+        const amgx::thrust::host_vector<int64_t>& row_offsets, 
+        const amgx::thrust::host_vector<int64_t>& col_indices, 
+        const amgx::thrust::host_vector<float>& mat_values, 
+        const amgx::thrust::host_vector<float>& rhs, 
+        const amgx::thrust::host_vector<float>& sol);
+
+template <> AMGX_ERROR writeSystemBinaryRaw_v2<
+    amgx::thrust::host_vector<int64_t>,
+    amgx::thrust::host_vector<float>,
+    amgx::thrust::host_vector<double>
+> (const char *fname, 
+        int64_t nrows,
+        int64_t nnz,
+        bool ext_diag,
+        const int bdimx,
+        const int bdimy,
+        const amgx::thrust::host_vector<int64_t>& row_offsets, 
+        const amgx::thrust::host_vector<int64_t>& col_indices, 
+        const amgx::thrust::host_vector<float>& mat_values, 
+        const amgx::thrust::host_vector<double>& rhs, 
+        const amgx::thrust::host_vector<double>& sol);
+
+template <> AMGX_ERROR writeSystemBinaryRaw_v2<
+    amgx::thrust::host_vector<int64_t>,
+    amgx::thrust::host_vector<double>,
+    amgx::thrust::host_vector<double>
+> (const char *fname, 
+        int64_t nrows,
+        int64_t nnz,
+        bool ext_diag,
+        const int bdimx,
+        const int bdimy,
+        const amgx::thrust::host_vector<int64_t>& row_offsets, 
+        const amgx::thrust::host_vector<int64_t>& col_indices, 
+        const amgx::thrust::host_vector<double>& mat_values, 
+        const amgx::thrust::host_vector<double>& rhs, 
+        const amgx::thrust::host_vector<double>& sol);
+
+template <> AMGX_ERROR writeSystemBinaryRaw_v2<
+    amgx::thrust::host_vector<int64_t>,
+    amgx::thrust::host_vector<cuComplex>,
+    amgx::thrust::host_vector<cuComplex>
+> (const char *fname, 
+        int64_t nrows,
+        int64_t nnz,
+        bool ext_diag,
+        const int bdimx,
+        const int bdimy,
+        const amgx::thrust::host_vector<int64_t>& row_offsets, 
+        const amgx::thrust::host_vector<int64_t>& col_indices, 
+        const amgx::thrust::host_vector<cuComplex>& mat_values, 
+        const amgx::thrust::host_vector<cuComplex>& rhs, 
+        const amgx::thrust::host_vector<cuComplex>& sol);
+
+template <> AMGX_ERROR writeSystemBinaryRaw_v2<
+    amgx::thrust::host_vector<int64_t>,
+    amgx::thrust::host_vector<cuComplex>,
+    amgx::thrust::host_vector<cuDoubleComplex>
+> (const char *fname, 
+        int64_t nrows,
+        int64_t nnz,
+        bool ext_diag,
+        const int bdimx,
+        const int bdimy,
+        const amgx::thrust::host_vector<int64_t>& row_offsets, 
+        const amgx::thrust::host_vector<int64_t>& col_indices, 
+        const amgx::thrust::host_vector<cuComplex>& mat_values, 
+        const amgx::thrust::host_vector<cuDoubleComplex>& rhs, 
+        const amgx::thrust::host_vector<cuDoubleComplex>& sol);
+
+template <> AMGX_ERROR writeSystemBinaryRaw_v2<
+    amgx::thrust::host_vector<int64_t>,
+    amgx::thrust::host_vector<cuDoubleComplex>,
+    amgx::thrust::host_vector<cuDoubleComplex>
+> (const char *fname, 
+        int64_t nrows,
+        int64_t nnz,
+        bool ext_diag,
+        const int bdimx,
+        const int bdimy,
+        const amgx::thrust::host_vector<int64_t>& row_offsets, 
+        const amgx::thrust::host_vector<int64_t>& col_indices, 
+        const amgx::thrust::host_vector<cuDoubleComplex>& mat_values, 
+        const amgx::thrust::host_vector<cuDoubleComplex>& rhs, 
+        const amgx::thrust::host_vector<cuDoubleComplex>& sol);*/
 } // end namespace amgx
