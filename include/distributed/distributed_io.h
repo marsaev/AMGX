@@ -59,4 +59,25 @@ struct DistributedRead<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPr
         static AMGX_ERROR distributedReadDeviceInit(const char *fnamec, Matrix<TConfig_h> &Ah_part, Matrix<TConfig_d> &A, Vector<TConfig_h> &bh_part, Vector<TConfig_h> &xh_part, I64Vector_h &part_offsets_h, int allocated_halo_depth, int part, int partitions, IVector_h &partSize, IVector_h &partitionVec, unsigned int props);
 };
 
+int distributed_read_large
+(int *n,
+ int *nnz,
+ int *block_dimx,
+ int *block_dimy,
+ int **row_ptrs,
+ void **col_indices_global,
+ void **data,
+ void **diag_data,
+ void **rhs,
+ void **sol,
+// AMGX_resources_handle rsc,
+ AMGX_Mode mode,
+ const char *filename,
+ int allocated_halo_depth,
+ int num_partitions,
+ int partition_id,
+ const int *partition_sizes,
+ int partition_vector_size,
+ const int *partition_vector);
+
 } // end namespace amgx

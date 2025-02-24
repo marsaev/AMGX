@@ -181,8 +181,10 @@ AMGX_ERROR writeSystemBinaryRaw_v2(const char *fname,
     bool is_mtx = true;
     bool is_rhs = rhs.size() != 0;
     bool is_soln = sol.size() != 0;
+    
     uint32_t matrix_format = MatrixProps::CSR;
-
+    // only csr supported
+    assert(A.hasProps(CSR));
     /*if (A.hasProps(CSR))
     {
         matrix_format = MatrixProps::CSR;
@@ -196,6 +198,8 @@ AMGX_ERROR writeSystemBinaryRaw_v2(const char *fname,
         FatalError("Unsupported matrix format", AMGX_ERR_BAD_PARAMETERS);
     }*/
 
+    // only real-valued mtx supported
+    assert(!types::util<matrix_type>::is_complex);
     /*if (types::util<ValueTypeA>::is_complex)
     {
         matrix_format += COMPLEX;
@@ -231,62 +235,63 @@ AMGX_ERROR writeSystemBinaryRaw_v2(const char *fname,
         bin_type<vector_type>(),
         bin_type<index_type>()
     };
-        fwrite(header_id.c_str(), sizeof(char), header_id.length(), fout);
-        fwrite(system_flags.data(), sizeof(uint64_t), system_header_size, fout);
-        
-        uint64_t raw_values_number = static_cast<uint64_t>(bdimx) * bdimy * (nnz + (ext_diag ? nrows : 0) );
+    fwrite(header_id.c_str(), sizeof(char), header_id.length(), fout);
+    fwrite(system_flags.data(), sizeof(uint64_t), system_header_size, fout);
+    
+    // including diag in the end if exists.
+    uint64_t raw_values_number = static_cast<uint64_t>(bdimx) * bdimy * (nnz + (ext_diag ? nrows : 0) );
 
-        if (is_mtx)
+    if (is_mtx)
+    {
+        if (row_offsets.size() != nrows + 1 || 
+            col_indices.size() != nnz ||
+            mat_values.size() != raw_values_number)
         {
-            if (row_offsets.size() != nrows + 1 || 
-                col_indices.size() != nnz ||
-                mat_values.size() != raw_values_number)
-            {
-                FatalError("matrix dimension do not match", AMGX_ERR_BAD_PARAMETERS);
-            }
-
-            if (matrix_format == MatrixProps::CSR)
-            {
-                fwrite(raw(row_offsets), sizeof(index_type), nrows+1, fout); 
-                fwrite(raw(col_indices), sizeof(index_type), nnz, fout); 
-                fwrite(raw(mat_values), 
-                    sizeof(matrix_type), 
-                    static_cast<uint64_t>(bdimx) * bdimy * (nnz + (ext_diag ? nrows : 0) ), 
-                    fout); // including diag in the end if exists.
-            }
-            else
-            {
-                FatalError("Unsupported matrix format for now", AMGX_ERR_IO);
-            }
-        } // End of writing matrix
-
-
-        //write rhs
-        if (is_rhs)
-        {
-            if (rhs.size() != nrows * bdimy)
-            {
-                FatalError("rhs vector and matrix dimension does not match", AMGX_ERR_BAD_PARAMETERS);
-            }
-
-            fwrite(raw(rhs), sizeof(vector_type), rhs.size(), fout);
+            FatalError("matrix dimension do not match", AMGX_ERR_BAD_PARAMETERS);
         }
 
-        // write initial guess if we have it
-        if (is_soln)
+        if (matrix_format == MatrixProps::CSR)
         {
-            if (sol.size() != nrows * bdimx)
-            {
-                FatalError("solution vector and matrix dimension does not match", AMGX_ERR_BAD_PARAMETERS);
-            }
+            fwrite(raw(row_offsets), sizeof(index_type), nrows+1, fout); 
+            fwrite(raw(col_indices), sizeof(index_type), nnz, fout); 
+            fwrite(raw(mat_values), 
+                sizeof(matrix_type), 
+                raw_values_number, 
+                fout); 
+        }
+        else
+        {
+            FatalError("Unsupported matrix format for now", AMGX_ERR_IO);
+        }
+    } // End of writing matrix
 
-            fwrite(raw(sol), sizeof(vector_type), sol.size(), fout);
+
+    //write rhs
+    if (is_rhs)
+    {
+        if (rhs.size() != nrows * bdimy)
+        {
+            FatalError("rhs vector and matrix dimension does not match", AMGX_ERR_BAD_PARAMETERS);
         }
 
-        fclose(fout);
-        err = "Done writing system to file!\n";
-        amgx_output(err.c_str(), err.length());
-        return AMGX_OK;
+        fwrite(raw(rhs), sizeof(vector_type), rhs.size(), fout);
+    }
+
+    // write initial guess if we have it
+    if (is_soln)
+    {
+        if (sol.size() != nrows * bdimx)
+        {
+            FatalError("solution vector and matrix dimension does not match", AMGX_ERR_BAD_PARAMETERS);
+        }
+
+        fwrite(raw(sol), sizeof(vector_type), sol.size(), fout);
+    }
+
+    fclose(fout);
+    err = "Done writing system to file!\n";
+    amgx_output(err.c_str(), err.length());
+    return AMGX_OK;
 }
 
 } // end namespace amgx

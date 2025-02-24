@@ -507,7 +507,7 @@ int main(int argc, char **argv)
     AMGX_vector_bind(b, A);
     /* upload the vector (and the connectivity information) */
     AMGX_vector_upload(x, n, block_dimx, dh_x);
-    AMGX_vector_upload(b, n, block_dimx, dh_b);
+    AMGX_vector_upload(b, n, block_dimy, dh_b);
 
     /* start outer (non-linear) iterations */
     for (k = 0; k < max_it; k++)
@@ -519,7 +519,7 @@ int main(int argc, char **argv)
         /* solver solve */
         //MPI barrier for stability (should be removed in practice to maximize performance)
         MPI_Barrier(amgx_mpi_comm);
-        AMGX_solver_solve(solver, b, x);
+        AMGX_solver_solve_with_0_initial_guess(solver, b, x);
         /* check the status */
         MPI_Barrier(amgx_mpi_comm);
         AMGX_solver_get_status(solver, &status);
@@ -566,7 +566,10 @@ int main(int argc, char **argv)
     //}
 
     /* example of how to reconstruct the global matrix and write it to a file */
-    AMGX_write_system_distributed(A, b, x, "output_system.mtx", nrings, nranks, partition_sizes, partition_vector_size, partition_vector);
+    if ((pidx = findParamIndex(argv, argc, "-write")) != -1)
+    {
+        AMGX_write_system_distributed(A, b, x, "output_system.mtx", nrings, nranks, partition_sizes, partition_vector_size, partition_vector);
+    }
 
     if ((pidx = findParamIndex(argv, argc, "-gpu")) != -1)
     {

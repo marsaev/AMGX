@@ -4779,6 +4779,33 @@ extern "C" {
     {
         nvtxRange nvrf(__func__);
 
+        if (getenv("AMGX_FORCE_LARGE_READ"))
+        {
+            int rank {};
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+            distributed_read_large(n, 
+                nnz, 
+                block_dimx, 
+                block_dimy, 
+                row_ptrs, 
+                col_indices_global, 
+                data, 
+                diag_data, 
+                rhs, 
+                sol, 
+                //rsc, 
+                mode, 
+                filename, 
+                allocated_halo_depth, 
+                num_partitions, 
+                rank,
+                partition_sizes, 
+                partition_vector_size, 
+                partition_vector);
+            return AMGX_RC_OK;
+        }
+        
+
         // TODO: we can avoid one-ring construction since we don't need it in this function
         // although the overhead is probably small and this won't be benchmarked anyways
         // so it's more convenient to just reuse AMGX_read_system_maps_one_ring
