@@ -545,6 +545,11 @@ int main(int argc, char **argv)
 
     /* example of how to reconstruct the global matrix and write it to a file */
     //AMGX_write_system_distributed(A, b, x, "output_system.mtx", nrings, nranks, partition_sizes, partition_vector_size, partition_vector);
+    if ((pidx = findParamIndex(argv, argc, "-write")) != -1)
+    {
+        AMGX_vector_set_zero(x, n, block_dimx);
+        AMGX_write_system_distributed(A, b, x, argv[pidx+1], nrings, nranks, NULL, 0, NULL);
+    }
 
     if ((pidx = findParamIndex(argv, argc, "-gpu")) != -1)
     {

@@ -482,6 +482,7 @@ template <typename TConfig> class DistributedManagerBase
         // dispatch on the specialization level
         virtual void unpack_partition(int *Bp, int *Bc, mat_value_type *Bv) = 0;
         virtual void unpack_partition(int64_t *Bp, int64_t *Bc, mat_value_type *Bv) = 0;
+        virtual void make_inverse_renumbering() = 0;
 
         virtual void generatePoisson7pt(int nx, int ny, int nz, int P, int Q, int R) = 0;
 
@@ -1861,6 +1862,7 @@ class DistributedManager< TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indP
         void unpack_partition_impl(index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv);
         void unpack_partition(int *Bp, int *Bc, mat_value_type *Bv);// { unpack_partition_impl<int>(Bp, Bc, Bv); }
         void unpack_partition(int64_t *Bp, int64_t *Bc, mat_value_type *Bv);// { unpack_partition_impl<int64_t>(Bp, Bc, Bv); }
+        void make_inverse_renumbering();
 
         void generatePoisson7pt(int nx, int ny, int nz, int P, int Q, int R);
         template <typename t_colIndex>
@@ -1999,6 +2001,7 @@ class DistributedManager< TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_in
         void unpack_partition_impl(index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv);
         void unpack_partition(int *Bp, int *Bc, mat_value_type *Bv);// { unpack_partition_impl<int>(Bp, Bc, Bv); }
         void unpack_partition(int64_t *Bp, int64_t *Bc, mat_value_type *Bv);// { unpack_partition_impl<int64_t>(Bp, Bc, Bv); }
+        void make_inverse_renumbering();
 
         void generatePoisson7pt(int nx, int ny, int nz, int P, int Q, int R);
         template <typename t_colIndex>

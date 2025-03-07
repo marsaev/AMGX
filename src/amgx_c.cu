@@ -405,6 +405,8 @@ construct_global_matrix_typed(int &root, int &rank, Matrix<TConfig> *nv_mtx, int
     }
 
     cudaCheckError();
+    //--- before unpack_partition to global, we need to ensure inverse renumbering is present
+    nv_mtx->manager->make_inverse_renumbering();
     //--- unpack the matrix ---
     nv_mtx->manager->unpack_partition(amgx::thrust::raw_pointer_cast(Bp.data()),
                                         amgx::thrust::raw_pointer_cast(Bi.data()),

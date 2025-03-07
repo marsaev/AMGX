@@ -3319,6 +3319,24 @@ struct int_type_selector <Config, int64_t>{
 };
 
 template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
+void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPrec> >::make_inverse_renumbering()
+{
+    // only if needed
+    if (!this->inverse_renumbering.size()) 
+    {
+        this->createRenumbering(this->renumbering);
+        //now we have the full renumbering table in renum, calculate the inverse
+        this->inverse_renumbering.resize(this->renumbering.size());
+
+        if (this->renumbering.size() > 1)
+        {
+            calc_inverse_renumbering <<< std::min(4096, ((int)this->renumbering.size() + 511) / 512), 512 >>> (this->renumbering.raw(), this->inverse_renumbering.raw(), this->renumbering.size());
+            cudaCheckError();
+        }
+    }
+}
+
+template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
 template <typename index_type_out>
 void DistributedManager<TemplateConfig<AMGX_device, t_vecPrec, t_matPrec, t_indPrec> >::unpack_partition_impl(index_type_out *Bp, index_type_out *Bc, mat_value_type *Bv)
 {
@@ -5825,6 +5843,12 @@ void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPre
     {
         FatalError("Distributed solve only supported on devices", AMGX_ERR_NOT_IMPLEMENTED);
     }
+}
+
+template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
+void DistributedManager<TemplateConfig<AMGX_host, t_vecPrec, t_matPrec, t_indPrec> >::make_inverse_renumbering()
+{
+    FatalError("Distributed solve only supported on devices", AMGX_ERR_NOT_IMPLEMENTED);
 }
 
 template <AMGX_VecPrecision t_vecPrec, AMGX_MatPrecision t_matPrec, AMGX_IndPrecision t_indPrec>
