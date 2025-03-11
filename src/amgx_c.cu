@@ -180,7 +180,7 @@ int create_part_offsets(int &root, int &rank, MPI_Comm &mpicm, Matrix<TConfig> *
         nv_mtx->getOffsetAndSizeForView(OWNED, &offset, &n);
         MPI_Comm_size(mpicm, &nranks);
         nv_mtx->manager->part_offsets_h.resize(nranks + 1);
-        //printf("[%d,%d]: n=%d\n",rank,nranks,n);
+
         //gather the number of rows per partition on the host (on all ranks)
         t_VecPrec n64 = n;
         nv_mtx->manager->part_offsets_h[0] = 0; //first element is zero (the # of rows is gathered afterwards)
@@ -479,12 +479,10 @@ construct_global_matrix_typed(int &root, int &rank, Matrix<TConfig> *nv_mtx, int
             start = nv_mtx->manager->part_offsets_h[i];
             end  = nv_mtx->manager->part_offsets_h[i + 1];
             shift = hAp[start];
-            //if (rank == 0) printf("# %d %d %d\n",start,end,shift);
             thrust_wrapper::transform<AMGX_host>(hAp.begin() + start + 1, hAp.begin() + end + 1, hAp.begin() + start + 1, add_constant_op<index_type_out>(shift));
             cudaCheckError();
             di[i] = shift;
             rc[i] = hAp[end] - hAp[start];
-            //if (rank == 0) printf("& %d %d %d\n",hAp[start],hAp[end],hAp[end]-hAp[start]);
         }
 
         //some allocations/resizing
@@ -955,11 +953,190 @@ int construct_global_vector(int &root, int &rank,
         cudaCheckError();
         //--- unreorder the vector back (just like you did with the matrix, but only need to undo the interior-boundary reordering, because others do not apply) ---
         //Approach 1: just copy the vector (host or device depending on vector type -> host)
-        //amgx::thrust::copy(nv_vec->begin(),nv_vec->end(),hv.begin());
+        amgx::thrust::copy(nv_vec->begin(),nv_vec->end(),hv.begin());
+        for (int i = 0; i < hv.size(); i++)
+        {
+            //std::cout << "Rank: #" << rank << ", rhs_no_renum[" << i << "] = " << hv[i] << std::endl;
+        }
         //Approach 2: unreorder and copy the vector
         amgx::thrust::copy(amgx::thrust::make_permutation_iterator(nv_vec->begin(), nv_vec->getManager()->inverse_renumbering.begin()  ),
                      amgx::thrust::make_permutation_iterator(nv_vec->begin(), nv_vec->getManager()->inverse_renumbering.begin() + n),
                      hv.begin());
+        cudaCheckError();
+        for (int i = 0; i < hv.size(); i++)
+        {
+            //std::cout << "Rank: #" << rank << ", rhs_renum[" << i << "] = " << hv[i] << std::endl;
+        }
+
+        // --- construct global vector (rhs/sol) ---
+        //compute recvcounts and displacements for MPI_Gatherv
+        if (rank == root)
+        {
+            thrust_wrapper::transform<AMGX_host>(nv_mtx->manager->part_offsets_h.begin(), nv_mtx->manager->part_offsets_h.end() - 1, nv_mtx->manager->part_offsets_h.begin() + 1, rc.begin(), subtract_op<t_IndPrec>());
+            cudaCheckError();
+            amgx::thrust::copy(nv_mtx->manager->part_offsets_h.begin(), nv_mtx->manager->part_offsets_h.begin() + l, di.begin());
+            cudaCheckError();
+
+            for(int i = 0; i<l; ++i) {
+                rc[i] *= block_dim;
+                di[i] *= block_dim;
+            }
+        }
+
+        //alias raw pointers to thrust vector data (see thrust example unwrap_pointer for details)
+        rc_ptr = amgx::thrust::raw_pointer_cast(rc.data());
+        di_ptr = amgx::thrust::raw_pointer_cast(di.data());
+        hv_ptr = amgx::thrust::raw_pointer_cast(hv.data());
+        hg_ptr = amgx::thrust::raw_pointer_cast(hg.data());
+        cudaCheckError();
+
+        //gather (on the host)
+        if      (typeid(t_VecPrec) == typeid(float))
+        {
+            mpist = MPI_Gatherv(hv_ptr, n * block_dim, MPI_FLOAT,  hg_ptr, rc_ptr, di_ptr, MPI_FLOAT,  root, mpicm);
+        }
+        else if (typeid(t_VecPrec) == typeid(double))
+        {
+            mpist = MPI_Gatherv(hv_ptr, n * block_dim, MPI_DOUBLE, hg_ptr, rc_ptr, di_ptr, MPI_DOUBLE, root, mpicm);
+        }
+        else
+        {
+            FatalError("MPI_Gatherv of the vector has failed - incorrect vector data type", AMGX_ERR_CORE);
+        }
+
+        if (mpist != MPI_SUCCESS)
+        {
+            FatalError("MPI_Gatherv of the vector has failed - detected incorrect MPI return code", AMGX_ERR_CORE);
+        }
+
+        if (rank == root)
+        {
+            if (partition_vector != NULL)
+            {
+                //sanity check
+                if (partition_vector_size * block_dim != hg.size())
+                {
+                    FatalError("partition_vector_size does not match the global vector size", AMGX_ERR_CORE);
+                }
+
+                //construct a map (based on partition vector)
+                int i, j, k, nranks;
+                MPI_Comm_size(mpicm, &nranks);
+                amgx::thrust::host_vector<t_IndPrec> c(nranks, 0);
+                amgx::thrust::host_vector<t_IndPrec> map(hg.size());
+                amgx::thrust::host_vector<t_IndPrec> imap(hg.size());
+
+                for (i = 0; i < nv_mtx->manager->part_offsets_h[l]; i++)
+                {
+                    j = partition_vector[i];
+                    for(k = 0 ; k < block_dim; ++k) {
+                        map[i * block_dim + k] = nv_mtx->manager->part_offsets_h[j] + c[j];
+                        imap[map[i * block_dim + k]] = i * block_dim + k;
+                        c[j]++;
+                    }
+                }
+
+                //permute according to map during copy (host -> host or device depending on vector type)
+                gvec.resize(hg.size());
+                amgx::thrust::copy(amgx::thrust::make_permutation_iterator(hg.begin(), imap.begin()),
+                             amgx::thrust::make_permutation_iterator(hg.begin(), imap.end()),
+                             gvec.begin());
+                cudaCheckError();
+            }
+            else
+            {
+                //copy (host -> host or device depending on vector type)
+                gvec.resize(hg.size());
+                amgx::thrust::copy(hg.begin(), hg.end(), gvec.begin());
+                cudaCheckError();
+            }
+        }
+    }
+    else
+    {
+        /* ASSUMPTION: when manager has not been allocated you are running on a single rank */
+        gvec.resize(nv_vec->size());
+        amgx::thrust::copy(nv_vec->begin(), nv_vec->end(), gvec.begin());
+        cudaCheckError();
+    }
+
+    return 0;
+}
+
+
+// This funciton only permutes values according to one-ring row renumbering
+// int+ext -> mixed
+// This is done with manager.inverse_renumbering, which is ensured to be populated by caller
+template<class TConfig, typename OutVector>
+int construct_global_rhs(int &root, int &rank, 
+    Matrix<TConfig> *nv_mtx, 
+    Vector<TConfig> *nv_vec,  
+    OutVector &gvec, 
+    int &partition_vector_size, 
+    const int *partition_vector)
+{
+    typedef typename TConfig::IndPrec t_IndPrec;
+    typedef typename TConfig::VecPrec t_VecPrec;
+    int n, nnz, offset, l, block_dim;
+    int mpist;
+    MPI_Comm mpicm;
+    //MPI call parameters
+    t_IndPrec *rc_ptr, *di_ptr;
+    t_VecPrec *hv_ptr, *hg_ptr;
+    amgx::thrust::host_vector<t_IndPrec> rc;
+    amgx::thrust::host_vector<t_IndPrec> di;
+    //unreordered local vector on the host
+    amgx::thrust::host_vector<t_VecPrec> hv;
+    amgx::thrust::host_vector<t_IndPrec> irh;
+    //constructed global vector on the host
+    amgx::thrust::host_vector<t_VecPrec> hg;
+    //WARNING: this routine currently supports vectors only with block size =1 (it can be generalized in the future, though)
+    //initialize the defaults
+    root = 0;
+    rank = 0;
+    mpist = MPI_SUCCESS;
+    mpicm = MPI_COMM_WORLD;
+
+    if (nv_mtx->manager != NULL)
+    {
+        // some initializations
+        rank = nv_mtx->manager->global_id();
+
+        if (nv_mtx->manager->getComms() != NULL)
+        {
+            mpicm = *(nv_mtx->getResources()->getMpiComm());
+        }
+
+        nv_mtx->getOffsetAndSizeForView(OWNED, &offset, &n );
+        nv_mtx->getNnzForView(OWNED, &nnz);
+	    block_dim = nv_mtx->get_block_dimx(); // assume square blocks
+
+        if (nv_mtx->manager->part_offsets_h.size() == 0)   // create part_offsets_h & part_offsets
+        {
+            create_part_offsets(root, rank, mpicm, nv_mtx); // (if needed for aggregation path)
+        }
+
+        l = nv_mtx->manager->part_offsets_h.size() - 1;    // number of partitions
+        //some allocations/resizing
+        hv.resize(nv_vec->size() * block_dim);                         // host copy of nv_vec
+
+        if (rank == root)
+        {
+            hg.resize(nv_mtx->manager->part_offsets_h[l] * block_dim); // host copy of gvec
+            rc.resize(l);
+            di.resize(l);
+        }
+
+        cudaCheckError();
+        //--- unreorder the vector back (just like you did with the matrix, but only need to undo the interior-boundary reordering, because others do not apply) ---
+        //Approach 1: just copy the vector (host or device depending on vector type -> host)
+        amgx::thrust::copy(nv_vec->begin(), nv_vec->end(), hv.begin());
+        // also copy inverse renumbering to host, so we can have permute iterator with two host bases
+        irh = nv_vec->getManager()->inverse_renumbering;
+
+        //Approach 2: unreorder and copy the vector
+        amgx::thrust::copy(nv_vec->begin(), nv_vec->begin() + n,
+                     amgx::thrust::make_permutation_iterator(hv.begin(), irh.begin()));
         cudaCheckError();
 
         // --- construct global vector (rhs/sol) ---
@@ -2325,9 +2502,6 @@ inline AMGX_RC mpi_write_system_distributed(const AMGX_matrix_handle mtx,
         int64_t global_rows = get_global_nrows(mtx_ptr);
         int64_t global_nnz = get_global_nnz(mtx_ptr);
 
-        /*if (rank == 0)
-            std::cout << "Global rows: " << global_rows << ", global_nnz: " << global_nnz << std::endl;*/
-
         // whether or not global matrix number of rows/columns (less likely) or number of nonzeros (more likely) require 64bit
         if (getenv("AMGX_FORCE_LARGE_WRITE") || global_rows > std::numeric_limits<int32_t>::max() || global_nnz > std::numeric_limits<int32_t>::max())
         {
@@ -2356,7 +2530,7 @@ inline AMGX_RC mpi_write_system_distributed(const AMGX_matrix_handle mtx,
 
             if (rhs != NULL)
             {
-                construct_global_vector(root, rank, mtx_ptr, rhs_ptr, grhs, partition_vector_size, partition_vector);
+                construct_global_rhs(root, rank, mtx_ptr, rhs_ptr, grhs, partition_vector_size, partition_vector);
             }
 
             if (sol != NULL)
@@ -2407,7 +2581,7 @@ inline AMGX_RC mpi_write_system_distributed(const AMGX_matrix_handle mtx,
             if (rhs != NULL)
             {
                 grhs.setResources(rhs_ptr->getResources());
-                construct_global_vector(root, rank, mtx_ptr, rhs_ptr, grhs, partition_vector_size, partition_vector);
+                construct_global_rhs(root, rank, mtx_ptr, rhs_ptr, grhs, partition_vector_size, partition_vector);
             }
 
             if (sol != NULL)
