@@ -741,6 +741,7 @@ int construct_global_matrix(int &root, int &rank, Matrix<TConfig> *nv_mtx, Matri
     cudaCheckError();
 
     //gather (on the host)
+#if 0
     if (typeid(t_IndPrec) == typeid(int))
     {
         mpist = MPI_Gatherv(hli_ptr + 1, n, MPI_INT,  hgi_ptr, rc_ptr, di_ptr, MPI_INT,  root, mpicm);
@@ -749,6 +750,18 @@ int construct_global_matrix(int &root, int &rank, Matrix<TConfig> *nv_mtx, Matri
     {
         FatalError("MPI_Gatherv of the vector has failed - incorrect vector data type", AMGX_ERR_CORE);
     }
+#else
+    MPI_Datatype mpi_type;
+    if constexpr (std::is_same<t_IndPrec, int>::value) {
+        mpi_type = MPI_INT;
+    }
+    else if constexpr (std::is_same<t_IndPrec, int64_t>::value) {
+        mpi_type = MPI_INT64_T;
+    }
+    mpist = custom_gatherv(hli_ptr + 1, static_cast<t_IndPrec>(n), mpi_type,
+                    hgi_ptr, rc_ptr, di_ptr, mpi_type,
+                    root, mpicm);
+#endif
 
     if (mpist != MPI_SUCCESS)
     {
@@ -788,6 +801,7 @@ int construct_global_matrix(int &root, int &rank, Matrix<TConfig> *nv_mtx, Matri
 
     //gather (on the host)
     //columns indices
+#if 0
     if (typeid(t_IndPrec) == typeid(int))
     {
         mpist = MPI_Gatherv(hli_ptr, nnz, MPI_INT,  hgi_ptr, rc_ptr, di_ptr, MPI_INT,  root, mpicm);
@@ -801,6 +815,17 @@ int construct_global_matrix(int &root, int &rank, Matrix<TConfig> *nv_mtx, Matri
     {
         FatalError("MPI_Gatherv of the vector has failed - detected incorrect MPI return code", AMGX_ERR_CORE);
     }
+#else
+    if constexpr (std::is_same<t_IndPrec, int>::value) {
+        mpi_type = MPI_INT;
+    }
+    else if constexpr (std::is_same<t_IndPrec, int64_t>::value) {
+        mpi_type = MPI_INT64_T;
+    }
+    mpist = custom_gatherv(hli_ptr, static_cast<t_IndPrec>(nnz), mpi_type,
+                    hgi_ptr, rc_ptr, di_ptr, mpi_type,
+                    root, mpicm);
+#endif
 
     //values
     if(rank == root) {
@@ -812,6 +837,7 @@ int construct_global_matrix(int &root, int &rank, Matrix<TConfig> *nv_mtx, Matri
     rc_ptr = thrust::raw_pointer_cast(rc.data());
     di_ptr = thrust::raw_pointer_cast(di.data());
 
+#if 0
     if      (typeid(t_MatPrec) == typeid(float))
     {
         mpist = MPI_Gatherv(hlv_ptr, nnz * block_dimx * block_dimy, MPI_FLOAT,  hgv_ptr, rc_ptr, di_ptr, MPI_FLOAT,  root, mpicm);
@@ -824,6 +850,17 @@ int construct_global_matrix(int &root, int &rank, Matrix<TConfig> *nv_mtx, Matri
     {
         FatalError("MPI_Gatherv of the vector has failed - incorrect vector data type", AMGX_ERR_CORE);
     }
+#else
+    if constexpr (std::is_same<t_MatPrec, float>::value) {
+        mpi_type = MPI_FLOAT;
+    }
+    else if constexpr (std::is_same<t_MatPrec, double>::value) {
+        mpi_type = MPI_DOUBLE;
+    }
+    mpist = custom_gatherv(hlv_ptr, static_cast<t_IndPrec>(nnz) * block_dimx * block_dimy, mpi_type,
+                    hgv_ptr, rc_ptr, di_ptr, mpi_type,
+                    root, mpicm);
+#endif
 
     if (mpist != MPI_SUCCESS)
     {

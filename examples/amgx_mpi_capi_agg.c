@@ -497,6 +497,8 @@ int main(int argc, char **argv)
         /* solver solve */
         //MPI barrier for stability (should be removed in practice to maximize performance)
         MPI_Barrier(amgx_mpi_comm);
+        // optionally solve with zero-vector initial solution
+        //AMGX_solver_solve_with_0_initial_guess(solver, b, x);
         AMGX_solver_solve(solver, b, x);
         /* check the status */
         MPI_Barrier(amgx_mpi_comm);
@@ -547,7 +549,8 @@ int main(int argc, char **argv)
     //AMGX_write_system_distributed(A, b, x, "output_system.mtx", nrings, nranks, partition_sizes, partition_vector_size, partition_vector);
     if ((pidx = findParamIndex(argv, argc, "-write")) != -1)
     {
-        AMGX_vector_set_zero(x, n, block_dimx);
+        // optionally reset solution vector to zero
+        // AMGX_vector_set_zero(x, n, block_dimx);
         AMGX_write_system_distributed(A, b, x, argv[pidx+1], nrings, nranks, NULL, 0, NULL);
     }
 

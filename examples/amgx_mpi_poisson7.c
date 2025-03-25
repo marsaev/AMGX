@@ -344,6 +344,14 @@ int main(int argc, char **argv)
       }
     }
 
+    /* example of how to reconstruct the global matrix and write it to a file */
+    if ((pidx = findParamIndex(argv, argc, "-write")) != -1)
+    {
+        // optionally reset solution vector to zero
+        // AMGX_vector_set_zero(x, n, block_dimx);
+        AMGX_write_system_distributed(A, b, x, argv[pidx+1], nrings, nranks, NULL, 0, NULL);
+    }
+
     /* example of how to get (the local part of) the solution */
     //int sizeof_v_val;
     //sizeof_v_val = ((NVAMG_GET_MODE_VAL(NVAMG_VecPrecision, mode) == NVAMG_vecDouble))? sizeof(double): sizeof(float);

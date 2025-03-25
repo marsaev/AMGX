@@ -519,7 +519,9 @@ int main(int argc, char **argv)
         /* solver solve */
         //MPI barrier for stability (should be removed in practice to maximize performance)
         MPI_Barrier(amgx_mpi_comm);
-        AMGX_solver_solve_with_0_initial_guess(solver, b, x);
+        // optionally solve with zero-vector initial solution
+        //AMGX_solver_solve_with_0_initial_guess(solver, b, x);
+        AMGX_solver_solve(solver, b, x);
         /* check the status */
         MPI_Barrier(amgx_mpi_comm);
         AMGX_solver_get_status(solver, &status);
@@ -554,21 +556,22 @@ int main(int argc, char **argv)
     }
 
     /* example of how to get (the local part of) the solution */
-    //if ((pidx = findParamIndex(argv, argc, "-gpu")) != -1) {
+    // if ((pidx = findParamIndex(argv, argc, "-gpu")) != -1) {
     //    CUDA_SAFE_CALL(cudaMalloc(&d_result, n*block_dimx*sizeof_v_val));
     //    AMGX_vector_download(x, d_result);
     //    CUDA_SAFE_CALL(cudaFree(d_result));
-    //}
-    //else{
+    // }
+    // else{
     //    void* h_result = malloc(n*block_dimx*sizeof_v_val);
     //    AMGX_vector_download(x, h_result);
     //    free(h_result);
-    //}
+    // }
 
     /* example of how to reconstruct the global matrix and write it to a file */
     if ((pidx = findParamIndex(argv, argc, "-write")) != -1)
     {
-        AMGX_vector_set_zero(x, n, block_dimx);
+        // optionally reset solution vector to zero
+        // AMGX_vector_set_zero(x, n, block_dimx);
         AMGX_write_system_distributed(A, b, x, argv[pidx+1], nrings, nranks, NULL, 0, NULL);
     }
 
